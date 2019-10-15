@@ -188,7 +188,7 @@ func (opts *options) Complete() error {
 
 // commitToGoModString convert the Git commit to go.mod compatible version string that includes timestamp and the first 12 characters from commit hash.
 func commitToGoModString(c *object.Commit) string {
-	t := c.Committer.When
+	t := c.Committer.When.UTC()
 	timestamp := fmt.Sprintf("%d%.2d%.2d%.2d%.2d%.2d", t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second())
 	return fmt.Sprintf("v0.0.0-%s-%s", timestamp, c.Hash.String()[0:12])
 }
