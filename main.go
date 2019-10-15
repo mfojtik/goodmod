@@ -8,7 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/mfojtik/gomod-helpers/pkg/cmd/update"
+	"github.com/mfojtik/gomod-helpers/pkg/cmd/replace"
 )
 
 func main() {
@@ -31,7 +31,7 @@ func NewMainCommand() *cobra.Command {
 		},
 	}
 
-	cmd.AddCommand(update.NewUpdateCommand())
+	cmd.AddCommand(replace.NewReplaceCommand())
 
 	return cmd
 }
