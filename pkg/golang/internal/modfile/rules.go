@@ -48,7 +48,7 @@ type Require struct {
 	Syntax   *Line
 }
 
-// An Exclude is a single exclude statement.
+// An Excludes is a single exclude statement.
 type Exclude struct {
 	Mod    module.Version
 	Syntax *Line

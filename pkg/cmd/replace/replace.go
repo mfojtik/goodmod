@@ -30,7 +30,7 @@ type options struct {
 	Tag    string
 
 	Paths     []string
-	Exclude   []string
+	Excludes  []string
 	GoModPath string
 
 	replaces []moduleReplace
@@ -41,23 +41,28 @@ func (opts *options) AddFlags(flags *pflag.FlagSet) {
 	flags.StringVar(&opts.Tag, "tag", "", "Specify tag to use for this bump")
 	flags.StringVar(&opts.Commit, "commit", "", "Specify commit to use for this bump")
 	flags.StringVar(&opts.GoModPath, "gomod-file-path", "go.mod", "Specify the path to go.mod file")
-	flags.StringArrayVar(&opts.Paths, "paths", []string{}, "Specify dependency path prefixes to update separated by comma (eg. 'github.com/openshift/api' or 'k8s.io/')")
-	flags.StringArrayVar(&opts.Exclude, "exclude", []string{}, "Specify dependency path prefixes to exclude (eg. 'github.com/openshift/api' or 'k8s.io/')")
+	flags.StringSliceVar(&opts.Paths, "paths", []string{}, "Specify dependency path prefixes to update separated by comma (eg. 'github.com/openshift/api' or 'k8s.io/')")
+	flags.StringSliceVar(&opts.Excludes, "excludes", []string{}, "Specify dependency path prefixes to exclude (eg. 'github.com/openshift/api' or 'k8s.io/')")
 }
 
-func (opts *options) matchRepository(r string) bool {
+func (opts *options) matchPath(r string) bool {
 	for _, item := range opts.Paths {
 		exclude := false
-		for _, excludes := range opts.Exclude {
-			if strings.HasPrefix(r, excludes) {
+		for _, e := range opts.Excludes {
+			if strings.HasPrefix(r, e) {
 				exclude = true
-				break
 			}
 		}
-		if exclude {
-			continue
+		if !exclude && strings.HasPrefix(r, item) {
+			return true
 		}
-		if strings.HasPrefix(r, item) {
+	}
+	return false
+}
+
+func (opts *options) hasReplacePath(path string) bool {
+	for _, p := range opts.replaces {
+		if p.newPath == path {
 			return true
 		}
 	}
@@ -75,8 +80,13 @@ func (opts *options) parseModules() error {
 		return err
 	}
 	for _, r := range s.Replace {
-		if opts.matchRepository(r.New.Path) {
+		if opts.matchPath(r.New.Path) {
 			opts.replaces = append(opts.replaces, moduleReplace{newPath: r.New.Path, oldPath: r.Old.Path})
+		}
+	}
+	for _, r := range s.Require {
+		if !opts.hasReplacePath(r.Mod.Path) && opts.matchPath(r.Mod.Path) {
+			opts.replaces = append(opts.replaces, moduleReplace{newPath: r.Mod.Path, oldPath: r.Mod.Path})
 		}
 	}
 	return nil
@@ -147,8 +157,11 @@ func (opts *options) Complete() error {
 				if err != nil {
 					reportError(replace.newPath, fmt.Errorf("object not found: %v", err))
 				}
-				// fake this, we only need hash and timestamp
-				commit = &object.Commit{Hash: obj.Hash, Committer: obj.Tagger}
+				commit, err = repository.CommitObject(obj.Target)
+				if err != nil {
+					reportError(replace.newPath, fmt.Errorf("unable to find commit %s: %v", opts.Commit, err))
+					return
+				}
 			}
 
 			if len(opts.Commit) > 0 {
@@ -176,7 +189,7 @@ func (opts *options) Complete() error {
 // commitToGoModString convert the Git commit to go.mod compatible version string that includes timestamp and the first 12 characters from commit hash.
 func commitToGoModString(c *object.Commit) string {
 	t := c.Committer.When
-	timestamp := fmt.Sprintf("%d%d%d%d%d%d", t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second())
+	timestamp := fmt.Sprintf("%d%.2d%.2d%.2d%.2d%.2d", t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second())
 	return fmt.Sprintf("v0.0.0-%s-%s", timestamp, c.Hash.String()[0:12])
 }
 
