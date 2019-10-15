@@ -195,6 +195,9 @@ func commitToGoModString(c *object.Commit) string {
 
 func (opts *options) Run() error {
 	for _, replace := range opts.replaces {
+		if len(replace.newPathVersion) == 0 {
+			continue
+		}
 		if _, err := fmt.Fprintf(os.Stdout, `go mod edit -replace %s=%s@"%s"`+"\n", replace.oldPath, replace.newPath, replace.newPathVersion); err != nil {
 			return err
 		}
