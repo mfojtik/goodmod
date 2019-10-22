@@ -2,6 +2,7 @@ package commit
 
 import (
 	"context"
+	"net/http"
 
 	"github.com/google/go-github/v28/github"
 
@@ -9,12 +10,18 @@ import (
 	"github.com/mfojtik/gomod-helpers/pkg/resolve/types"
 )
 
-type GithubCommitResolver struct{}
+type GithubCommitResolver struct {
+	oauthClient *http.Client
+}
+
+func NewGithubCommitResolver(oauthClient *http.Client) resolve.ModulerResolver {
+	return &GithubCommitResolver{oauthClient: oauthClient}
+}
 
 func (g *GithubCommitResolver) Resolve(ctx context.Context, modulePath string, name string) (*types.Commit, error) {
-	client := github.NewClient(nil)
+	client := github.NewClient(g.oauthClient)
 	owner, repo := resolve.GetGithubOwnerAndRepo(resolve.RepositoryModulePath(modulePath))
-	commit, _, err := client.Git.GetCommit(ctx, repo, owner, name)
+	commit, _, err := client.Git.GetCommit(ctx, owner, repo, name)
 	if err != nil {
 		return nil, err
 	}

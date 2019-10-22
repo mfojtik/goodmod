@@ -1,21 +1,26 @@
 package replace
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"strings"
 	"sync"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	"gopkg.in/src-d/go-git.v4"
-	"gopkg.in/src-d/go-git.v4/plumbing"
+	"golang.org/x/oauth2"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
-	"gopkg.in/src-d/go-git.v4/storage/memory"
 
 	"github.com/mfojtik/gomod-helpers/pkg/golang"
+	"github.com/mfojtik/gomod-helpers/pkg/resolve"
+	"github.com/mfojtik/gomod-helpers/pkg/resolve/branch"
+	"github.com/mfojtik/gomod-helpers/pkg/resolve/commit"
+	"github.com/mfojtik/gomod-helpers/pkg/resolve/tag"
+	"github.com/mfojtik/gomod-helpers/pkg/resolve/types"
 )
 
 type moduleReplace struct {
@@ -33,7 +38,8 @@ type options struct {
 	Excludes  []string
 	GoModPath string
 
-	replaces []moduleReplace
+	GithubClient *http.Client
+	replaces     []moduleReplace
 }
 
 func (opts *options) AddFlags(flags *pflag.FlagSet) {
@@ -105,7 +111,66 @@ func reportError(repo string, inErr error) {
 	}
 }
 
+func (opts *options) resolveByTag(modulePath string) *types.Commit {
+	resolvers := []resolve.ModulerResolver{
+		tag.NewGithubTagResolver(nil),
+		tag.NewGitTagResolver(),
+	}
+	for _, r := range resolvers {
+		c, err := r.Resolve(context.TODO(), modulePath, opts.Tag)
+		if err != nil {
+			reportError(modulePath, fmt.Errorf("failed to resolve tag using %T: %v", r, err))
+			continue
+		}
+		return c
+	}
+	return nil
+}
+
+func (opts *options) resolveByBranch(modulePath string) *types.Commit {
+	resolvers := []resolve.ModulerResolver{
+		branch.NewGithubBranchResolver(nil),
+		branch.NewGitBranchResolver(),
+	}
+	for _, r := range resolvers {
+		c, err := r.Resolve(context.TODO(), modulePath, opts.Branch)
+		if err != nil {
+			reportError(modulePath, fmt.Errorf("failed to resolve branch using %T: %v", r, err))
+			continue
+		}
+		return c
+	}
+	return nil
+}
+
+func (opts *options) resolveByCommit(modulePath string) *types.Commit {
+	resolvers := []resolve.ModulerResolver{
+		commit.NewGithubCommitResolver(nil),
+		commit.NewGitCommitResolver(),
+	}
+	for _, r := range resolvers {
+		c, err := r.Resolve(context.TODO(), modulePath, opts.Commit)
+		if err != nil {
+			reportError(modulePath, fmt.Errorf("failed to resolve commit using %T: %v", r, err))
+			continue
+		}
+		return c
+	}
+	return nil
+}
+
 func (opts *options) Complete() error {
+	ctx := context.Background()
+
+	if ghToken := os.Getenv("GITHUB_TOKEN"); len(ghToken) > 0 {
+		ts := oauth2.StaticTokenSource(
+			&oauth2.Token{AccessToken: ghToken},
+		)
+		opts.GithubClient = oauth2.NewClient(ctx, ts)
+	} else {
+		reportError("", fmt.Errorf("Using Github client without authentication, set GITHUB_TOKEN if you get rate limited"))
+	}
+
 	if err := opts.parseModules(); err != nil {
 		return err
 	}
@@ -122,59 +187,29 @@ func (opts *options) Complete() error {
 
 	for i := range opts.replaces {
 		go func(index int) {
-			replace := opts.replaces[index]
-
 			defer wg.Done()
-			repository, err := git.Clone(memory.NewStorage(), nil, &git.CloneOptions{URL: pathToRepository(replace.newPath)})
-			if err != nil {
-				reportError(replace.newPath, fmt.Errorf("failed to clone git repository %s: %v", pathToRepository(replace.newPath), err))
-				return
-			}
+			replace := opts.replaces[index]
 			var (
-				commit *object.Commit
+				foundCommit *types.Commit
 			)
 
 			if len(opts.Branch) > 0 {
-				ref, err := repository.Storer.Reference(plumbing.NewBranchReferenceName(opts.Branch))
-				if err != nil {
-					reportError(replace.newPath, fmt.Errorf("unable to find branch %s: %v", opts.Branch, err))
-					return
-				}
-				commit, err = repository.CommitObject(ref.Hash())
-				if err != nil {
-					reportError(replace.newPath, err)
-					return
-				}
+				foundCommit = opts.resolveByBranch(replace.newPath)
 			}
 
 			if len(opts.Tag) > 0 {
-				ref, err := repository.Storer.Reference(plumbing.NewTagReferenceName(opts.Tag))
-				if err != nil {
-					reportError(replace.newPath, fmt.Errorf("unable to find tag %s: %v", opts.Tag, err))
-					return
-				}
-				obj, err := repository.TagObject(ref.Hash())
-				if err != nil {
-					reportError(replace.newPath, fmt.Errorf("object not found: %v", err))
-				}
-				commit, err = repository.CommitObject(obj.Target)
-				if err != nil {
-					reportError(replace.newPath, fmt.Errorf("unable to find commit %s: %v", opts.Commit, err))
-					return
-				}
+				foundCommit = opts.resolveByTag(replace.newPath)
 			}
 
 			if len(opts.Commit) > 0 {
-				// This seems to be unnecessary, but it is ok to check if the target commit really exists in the repo
-				var err error
-				commit, err = repository.CommitObject(plumbing.NewHash(opts.Commit))
-				if err != nil {
-					reportError(replace.newPath, fmt.Errorf("unable to find commit %s: %v", opts.Commit, err))
-					return
-				}
+				foundCommit = opts.resolveByCommit(replace.newPath)
 			}
 
-			opts.replaces[index].newPathVersion = commitToGoModString(commit)
+			if foundCommit == nil {
+				reportError(replace.newPath, fmt.Errorf("unable to get commit"))
+				return
+			}
+			opts.replaces[index].newPathVersion = foundCommit.String()
 			if _, err := fmt.Fprintf(os.Stdout, "# Using %q for import path %q ...\n", opts.replaces[index].newPathVersion, replace.newPath); err != nil {
 				reportError(replace.newPath, err)
 				return

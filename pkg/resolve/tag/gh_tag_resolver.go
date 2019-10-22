@@ -2,6 +2,7 @@ package tag
 
 import (
 	"context"
+	"net/http"
 
 	"github.com/google/go-github/v28/github"
 
@@ -9,10 +10,16 @@ import (
 	"github.com/mfojtik/gomod-helpers/pkg/resolve/types"
 )
 
-type GithubTagResolver struct{}
+type GithubTagResolver struct {
+	oauthClient *http.Client
+}
+
+func NewGithubTagResolver(oauthClient *http.Client) resolve.ModulerResolver {
+	return &GithubTagResolver{oauthClient: oauthClient}
+}
 
 func (r *GithubTagResolver) Resolve(ctx context.Context, path string, tagName string) (*types.Commit, error) {
-	client := github.NewClient(nil)
+	client := github.NewClient(r.oauthClient)
 	owner, repo := resolve.GetGithubOwnerAndRepo(resolve.RepositoryModulePath(path))
 	tree, _, err := client.Git.GetTree(ctx, owner, repo, tagName, false)
 	if err != nil {
