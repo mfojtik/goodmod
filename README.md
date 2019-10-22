@@ -1,25 +1,38 @@
 # gomod-helpers
 
-This repository contain various helpers that should help developers working with `go mod`.
+`gomod-helpers` is a helper tool to perform bulk updates of multiple go modules at once, especially when bumping
+the module versions. This helper will help to bump the version using branch, tag or specific commit.
 
-#### Usage
+To resolve branches and tag, this helper will use Github and if that fails, it falls back to git clone (slow).
+Github API is rate limited, so I encourage you to set `GITHUB_TOKEN` environment variable to bump the allowed requests limit.
 
-* Bulk replacing/pinning to specific version/tag/commit:
+#### Examples
 
-```bash
-gomod-helpers replace --tag=kubernetes-1.16.1 --paths=k8s.io/ --exclude=k8s.io/gengo
-# Setting version "v0.0.0-2019102162552-e32f40effea1" for repository "k8s.io/component-base" ...
-# Setting version "v0.0.0-2019102162552-33a2f62922c7" for repository "k8s.io/code-generator" ...
-# Setting version "v0.0.0-2019102162552-e15c9dfa956a" for repository "k8s.io/apimachinery" ...
-# Setting version "v0.0.0-2019102162552-813d2abdde12" for repository "k8s.io/apiserver" ...
-# Setting version "v0.0.0-2019102162552-ef11380c2891" for repository "k8s.io/client-go" ...
-# Setting version "v0.0.0-2019102162552-aec909fb44be" for repository "k8s.io/kube-aggregator" ...
-# Setting version "v0.0.0-2019102162552-d348b21713e8" for repository "k8s.io/api" ...
-go mod edit -replace k8s.io/api=k8s.io/api@"v0.0.0-2019102162552-d348b21713e8"
-go mod edit -replace k8s.io/apimachinery=k8s.io/apimachinery@"v0.0.0-2019102162552-e15c9dfa956a"
-go mod edit -replace k8s.io/apiserver=k8s.io/apiserver@"v0.0.0-2019102162552-813d2abdde12"
-go mod edit -replace k8s.io/client-go=k8s.io/client-go@"v0.0.0-2019102162552-ef11380c2891"
-go mod edit -replace k8s.io/code-generator=k8s.io/code-generator@"v0.0.0-2019102162552-33a2f62922c7"
-go mod edit -replace k8s.io/component-base=k8s.io/component-base@"v0.0.0-2019102162552-e32f40effea1"
-go mod edit -replace k8s.io/kube-aggregator=k8s.io/kube-aggregator@"v0.0.0-2019102162552-aec909fb44be"
+To replace all modules that starts with `k8s.io/` prefix to point to a commit under `kubernetes-1.16.2` tag, use:
+```
+$ gomod-helpers replace --tag=kubernetes-1.16.2 --paths=k8s.io/
+```
+
+To replace `github.com/openshift/library-go` module to point to a commit under `master` branch, use:
+```
+$ gomod-helpers replace --branch=master --paths=github.com/openshift/library-go
+```
+
+To replace all modules with `github.com/openshift/` prefix to point to a commit under `master` branch, use:
+```
+$ gomod-helpers replace --branch=master --paths=github.com/openshift/
+```
+
+
+Note that this command will NOT directly modify the `go.mod` file, but it will output a series of `go mod edit` commands
+you can copy&paste to terminal, or you can pipe to `xargs`.
+
+```cgo
+$ gomod-helpers replace --tag=kubernetes-1.16.2 --paths=k8s.io/
+go mod edit -replace k8s.io/api=k8s.io/api@"v0.0.0-20191016110408-35e52d86657a"
+go mod edit -replace k8s.io/apiextensions-apiserver=k8s.io/apiextensions-apiserver@"v0.0.0-20191016113550-5357c4baaf65"
+go mod edit -replace k8s.io/apimachinery=k8s.io/apimachinery@"v0.0.0-20191004115801-a2eda9f80ab8"
+go mod edit -replace k8s.io/apiserver=k8s.io/apiserver@"v0.0.0-20191016112112-5190913f932d"
+go mod edit -replace k8s.io/client-go=k8s.io/client-go@"v0.0.0-20191016111102-bec269661e48"
+...
 ```
