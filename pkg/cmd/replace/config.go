@@ -13,7 +13,7 @@ import (
 func ReadConfigToOptions(configPath string, originalOptions Options) ([]*Options, bool, error) {
 	configBytes, err := ioutil.ReadFile(configPath)
 	if os.IsNotExist(err) {
-		return nil, true, err
+		return nil, true, nil
 	}
 	if err != nil {
 		return nil, false, fmt.Errorf("error reading %q: %v", configPath, err)
