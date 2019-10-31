@@ -7,7 +7,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	"github.com/mfojtik/gomod-helpers/pkg/config"
+	"github.com/mfojtik/goodmod/pkg/config"
 )
 
 func ReadConfigToOptions(configPath string, originalOptions Options) ([]*Options, bool, error) {

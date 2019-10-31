@@ -8,8 +8,8 @@ import (
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/storage/memory"
 
-	"github.com/mfojtik/gomod-helpers/pkg/resolve"
-	"github.com/mfojtik/gomod-helpers/pkg/resolve/types"
+	"github.com/mfojtik/goodmod/pkg/resolve"
+	"github.com/mfojtik/goodmod/pkg/resolve/types"
 )
 
 type GitTagResolver struct {

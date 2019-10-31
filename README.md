@@ -8,7 +8,7 @@ Github API is rate limited, so I encourage you to set `GITHUB_TOKEN` environment
 
 ### Installation
 
-The easiest way to get `gomod-helpers` is to grab the binaries from the [release](https://github.com/mfojtik/gomod-helpers/releases) page.
+The easiest way to get `gomod-helpers` is to grab the binaries from the [release](https://github.com/mfojtik/goodmod/releases) page.
 If you want to build this command yourself, you can clone this repository and run the `GOPATH=~/go make` command.
 
 #### Usage
@@ -46,4 +46,4 @@ If you want `gomod-helpers` directly modify the `go.mod` file, you can pass the 
 #### `go-helpers.yaml`
 
 In case you want to track what branches and tags you are following in your package, you can use the `go-helpers.yaml` file.
-That file can include multiple rules to apply on the `go.mod` file. Check the [examples/](https://github.com/mfojtik/gomod-helpers/tree/master/examples).
+That file can include multiple rules to apply on the `go.mod` file. Check the [examples/](https://github.com/mfojtik/goodmod/tree/master/examples).

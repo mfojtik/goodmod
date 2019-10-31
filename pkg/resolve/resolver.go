@@ -3,7 +3,7 @@ package resolve
 import (
 	"context"
 
-	"github.com/mfojtik/gomod-helpers/pkg/resolve/types"
+	"github.com/mfojtik/goodmod/pkg/resolve/types"
 )
 
 type ModulerResolver interface {

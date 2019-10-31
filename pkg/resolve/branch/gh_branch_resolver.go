@@ -6,8 +6,8 @@ import (
 
 	"github.com/google/go-github/v28/github"
 
-	"github.com/mfojtik/gomod-helpers/pkg/resolve"
-	"github.com/mfojtik/gomod-helpers/pkg/resolve/types"
+	"github.com/mfojtik/goodmod/pkg/resolve"
+	"github.com/mfojtik/goodmod/pkg/resolve/types"
 )
 
 type GithubBranchResolver struct {

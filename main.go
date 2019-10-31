@@ -8,7 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/mfojtik/gomod-helpers/pkg/cmd/replace"
+	"github.com/mfojtik/goodmod/pkg/cmd/replace"
 )
 
 func main() {

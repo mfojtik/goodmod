@@ -103,7 +103,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/mfojtik/gomod-helpers/pkg/golang/internal/semver"
+	"github.com/mfojtik/goodmod/pkg/golang/internal/semver"
 )
 
 // A Version (for clients, a module.Version) is defined by a module path and version pair.

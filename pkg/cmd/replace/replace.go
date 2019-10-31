@@ -15,12 +15,12 @@ import (
 	"github.com/spf13/pflag"
 	"golang.org/x/oauth2"
 
-	"github.com/mfojtik/gomod-helpers/pkg/golang"
-	"github.com/mfojtik/gomod-helpers/pkg/resolve"
-	"github.com/mfojtik/gomod-helpers/pkg/resolve/branch"
-	"github.com/mfojtik/gomod-helpers/pkg/resolve/commit"
-	"github.com/mfojtik/gomod-helpers/pkg/resolve/tag"
-	"github.com/mfojtik/gomod-helpers/pkg/resolve/types"
+	"github.com/mfojtik/goodmod/pkg/golang"
+	"github.com/mfojtik/goodmod/pkg/resolve"
+	"github.com/mfojtik/goodmod/pkg/resolve/branch"
+	"github.com/mfojtik/goodmod/pkg/resolve/commit"
+	"github.com/mfojtik/goodmod/pkg/resolve/tag"
+	"github.com/mfojtik/goodmod/pkg/resolve/types"
 )
 
 type moduleReplace struct {
