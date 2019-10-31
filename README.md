@@ -6,7 +6,12 @@ the module versions. This helper will help to bump the version using branch, tag
 To resolve branches and tag, this helper will use Github and if that fails, it falls back to git clone (slow).
 Github API is rate limited, so I encourage you to set `GITHUB_TOKEN` environment variable to bump the allowed requests limit.
 
-#### Examples
+### Installation
+
+The easiest way to get `gomod-helpers` is to grab the binaries from the [release](https://github.com/mfojtik/gomod-helpers/releases) page.
+If you want to build this command yourself, you can clone this repository and run the `GOPATH=~/go make` command.
+
+#### Usage
 
 To replace all modules that starts with `k8s.io/` prefix to point to a commit under `kubernetes-1.16.2` tag, use:
 ```
@@ -23,8 +28,7 @@ To replace all modules with `github.com/openshift/` prefix to point to a commit 
 $ gomod-helpers replace --branch=master --paths=github.com/openshift/
 ```
 
-
-Note that this command will NOT directly modify the `go.mod` file, but it will output a series of `go mod edit` commands
+**Note**: This command will **not** directly modify the `go.mod` file, but it will output a series of `go mod edit` commands
 you can copy&paste to terminal, or you can pipe to `xargs`.
 
 ```cgo
@@ -36,3 +40,10 @@ go mod edit -replace k8s.io/apiserver=k8s.io/apiserver@"v0.0.0-20191016112112-51
 go mod edit -replace k8s.io/client-go=k8s.io/client-go@"v0.0.0-20191016111102-bec269661e48"
 ...
 ```
+
+If you want `gomod-helpers` directly modify the `go.mod` file, you can pass the `--apply` flag.
+
+#### `go-helpers.yaml`
+
+In case you want to track what branches and tags you are following in your package, you can use the `go-helpers.yaml` file.
+That file can include multiple rules to apply on the `go.mod` file. Check the [examples/](https://github.com/mfojtik/gomod-helpers/tree/master/examples).
