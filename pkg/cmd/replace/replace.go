@@ -4,16 +4,16 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"strings"
 	"sync"
 
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"golang.org/x/oauth2"
-	"gopkg.in/src-d/go-git.v4/plumbing/object"
 
 	"github.com/mfojtik/gomod-helpers/pkg/golang"
 	"github.com/mfojtik/gomod-helpers/pkg/resolve"
@@ -29,29 +29,35 @@ type moduleReplace struct {
 	newPathVersion string
 }
 
-type options struct {
+type Options struct {
 	Branch string
 	Commit string
 	Tag    string
 
-	Paths     []string
-	Excludes  []string
-	GoModPath string
+	Paths      []string
+	Excludes   []string
+	GoModPath  string
+	ConfigPath string
+
+	ApplyReplace bool
 
 	GithubClient *http.Client
-	replaces     []moduleReplace
+
+	replaces []moduleReplace
 }
 
-func (opts *options) AddFlags(flags *pflag.FlagSet) {
+func (opts *Options) AddFlags(flags *pflag.FlagSet) {
+	flags.StringVar(&opts.ConfigPath, "config", "gomod-helper.yaml", "Specify file to read the replace rules from")
 	flags.StringVar(&opts.Branch, "branch", "", "Specify branch to use for this bump")
 	flags.StringVar(&opts.Tag, "tag", "", "Specify tag to use for this bump")
 	flags.StringVar(&opts.Commit, "commit", "", "Specify commit to use for this bump")
 	flags.StringVar(&opts.GoModPath, "gomod-file-path", "go.mod", "Specify the path to go.mod file")
+	flags.BoolVar(&opts.ApplyReplace, "apply", false, "Apply the replace rules (execute 'go mod edit -replace' directly)")
 	flags.StringSliceVar(&opts.Paths, "paths", []string{}, "Specify dependency path prefixes to update separated by comma (eg. 'github.com/openshift/api' or 'k8s.io/')")
 	flags.StringSliceVar(&opts.Excludes, "excludes", []string{}, "Specify dependency path prefixes to exclude (eg. 'github.com/openshift/api' or 'k8s.io/')")
 }
 
-func (opts *options) matchPath(r string) bool {
+func (opts *Options) matchPath(r string) bool {
 	for _, item := range opts.Paths {
 		exclude := false
 		for _, e := range opts.Excludes {
@@ -66,7 +72,7 @@ func (opts *options) matchPath(r string) bool {
 	return false
 }
 
-func (opts *options) hasReplacePath(path string) bool {
+func (opts *Options) hasReplacePath(path string) bool {
 	for _, p := range opts.replaces {
 		if p.newPath == path {
 			return true
@@ -76,7 +82,7 @@ func (opts *options) hasReplacePath(path string) bool {
 }
 
 // parseModules will parse the existing go.mod file and filter out only modules matching the name prefixes specified with this command
-func (opts *options) parseModules() error {
+func (opts *Options) parseModules() error {
 	modBytes, err := ioutil.ReadFile(opts.GoModPath)
 	if err != nil {
 		return err
@@ -98,28 +104,24 @@ func (opts *options) parseModules() error {
 	return nil
 }
 
-func pathToRepository(path string) string {
-	if strings.HasPrefix(path, "k8s.io/") {
-		return fmt.Sprintf("https://github.com/kubernetes/%s", strings.TrimPrefix(path, "k8s.io/"))
-	}
-	return fmt.Sprintf("https://%s", path)
-}
-
-func reportError(repo string, inErr error) {
-	if _, err := fmt.Fprintf(os.Stderr, "# ERROR: %s: %v\n", repo, inErr); err != nil {
+// reportErrorForPath will report errors to standard error output, but prefix all messages with comment, so it can still
+// be passed via pipe to command.
+func reportErrorForPath(path string, reportedError error) {
+	d := color.New(color.FgHiRed, color.Bold)
+	if _, err := fmt.Fprintf(os.Stderr, "### "+d.Sprintf("ERROR: %s: %v\n", path, reportedError)); err != nil {
 		panic(err)
 	}
 }
 
-func (opts *options) resolveByTag(modulePath string) *types.Commit {
+func (opts *Options) resolveByTag(modulePath string) *types.Commit {
 	resolvers := []resolve.ModulerResolver{
-		tag.NewGithubTagResolver(nil),
+		tag.NewGithubTagResolver(opts.GithubClient),
 		tag.NewGitTagResolver(),
 	}
 	for _, r := range resolvers {
 		c, err := r.Resolve(context.TODO(), modulePath, opts.Tag)
 		if err != nil {
-			reportError(modulePath, fmt.Errorf("failed to resolve tag using %T: %v", r, err))
+			reportErrorForPath(modulePath, fmt.Errorf("failed to resolve tag using %T: %v", r, err))
 			continue
 		}
 		return c
@@ -127,15 +129,15 @@ func (opts *options) resolveByTag(modulePath string) *types.Commit {
 	return nil
 }
 
-func (opts *options) resolveByBranch(modulePath string) *types.Commit {
+func (opts *Options) resolveByBranch(modulePath string) *types.Commit {
 	resolvers := []resolve.ModulerResolver{
-		branch.NewGithubBranchResolver(nil),
+		branch.NewGithubBranchResolver(opts.GithubClient),
 		branch.NewGitBranchResolver(),
 	}
 	for _, r := range resolvers {
 		c, err := r.Resolve(context.TODO(), modulePath, opts.Branch)
 		if err != nil {
-			reportError(modulePath, fmt.Errorf("failed to resolve branch using %T: %v", r, err))
+			reportErrorForPath(modulePath, fmt.Errorf("failed to resolve branch using %T: %v", r, err))
 			continue
 		}
 		return c
@@ -143,15 +145,15 @@ func (opts *options) resolveByBranch(modulePath string) *types.Commit {
 	return nil
 }
 
-func (opts *options) resolveByCommit(modulePath string) *types.Commit {
+func (opts *Options) resolveByCommit(modulePath string) *types.Commit {
 	resolvers := []resolve.ModulerResolver{
-		commit.NewGithubCommitResolver(nil),
+		commit.NewGithubCommitResolver(opts.GithubClient),
 		commit.NewGitCommitResolver(),
 	}
 	for _, r := range resolvers {
 		c, err := r.Resolve(context.TODO(), modulePath, opts.Commit)
 		if err != nil {
-			reportError(modulePath, fmt.Errorf("failed to resolve commit using %T: %v", r, err))
+			reportErrorForPath(modulePath, fmt.Errorf("failed to resolve commit: %v", r, err))
 			continue
 		}
 		return c
@@ -159,18 +161,7 @@ func (opts *options) resolveByCommit(modulePath string) *types.Commit {
 	return nil
 }
 
-func (opts *options) Complete() error {
-	ctx := context.Background()
-
-	if ghToken := os.Getenv("GITHUB_TOKEN"); len(ghToken) > 0 {
-		ts := oauth2.StaticTokenSource(
-			&oauth2.Token{AccessToken: ghToken},
-		)
-		opts.GithubClient = oauth2.NewClient(ctx, ts)
-	} else {
-		reportError("", fmt.Errorf("Using Github client without authentication, set GITHUB_TOKEN if you get rate limited"))
-	}
-
+func (opts *Options) Complete() error {
 	if err := opts.parseModules(); err != nil {
 		return err
 	}
@@ -206,14 +197,10 @@ func (opts *options) Complete() error {
 			}
 
 			if foundCommit == nil {
-				reportError(replace.newPath, fmt.Errorf("unable to get commit"))
+				reportErrorForPath(replace.newPath, fmt.Errorf("unable to get commit"))
 				return
 			}
 			opts.replaces[index].newPathVersion = foundCommit.String()
-			if _, err := fmt.Fprintf(os.Stdout, "# Using %q for import path %q ...\n", opts.replaces[index].newPathVersion, replace.newPath); err != nil {
-				reportError(replace.newPath, err)
-				return
-			}
 		}(i)
 	}
 
@@ -221,14 +208,16 @@ func (opts *options) Complete() error {
 	return nil
 }
 
-// commitToGoModString convert the Git commit to go.mod compatible version string that includes timestamp and the first 12 characters from commit hash.
-func commitToGoModString(c *object.Commit) string {
-	t := c.Committer.When.UTC()
-	timestamp := fmt.Sprintf("%d%.2d%.2d%.2d%.2d%.2d", t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second())
-	return fmt.Sprintf("v0.0.0-%s-%s", timestamp, c.Hash.String()[0:12])
+func (opts *Options) applyReplace(replace moduleReplace) error {
+	cmd := exec.Command("go", "mod", "edit", "-replace", fmt.Sprintf(`%s=%s@%s`, replace.oldPath, replace.newPath, replace.newPathVersion))
+	outBytes, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s: %v\n%s", strings.Join(cmd.Args, " "), err, string(outBytes))
+	}
+	return nil
 }
 
-func (opts *options) Run() error {
+func (opts *Options) Run() error {
 	for _, replace := range opts.replaces {
 		if len(replace.newPathVersion) == 0 {
 			continue
@@ -236,11 +225,16 @@ func (opts *options) Run() error {
 		if _, err := fmt.Fprintf(os.Stdout, `go mod edit -replace %s=%s@"%s"`+"\n", replace.oldPath, replace.newPath, replace.newPathVersion); err != nil {
 			return err
 		}
+		if opts.ApplyReplace {
+			if err := opts.applyReplace(replace); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }
 
-func (opts *options) Validate() error {
+func (opts *Options) Validate() error {
 	if len(opts.Branch) == 0 && len(opts.Commit) == 0 && len(opts.Tag) == 0 {
 		return fmt.Errorf("either branch, commit or tag must be specified")
 	}
@@ -250,24 +244,58 @@ func (opts *options) Validate() error {
 	return nil
 }
 
+func reportFatal(message interface{}, objects ...interface{}) {
+	formatMessage := ""
+	switch v := message.(type) {
+	case error:
+		formatMessage = v.Error()
+	case string:
+		formatMessage = v
+	}
+	if _, err := fmt.Fprintf(os.Stderr, "ERROR: "+formatMessage+"\n", objects...); err != nil {
+		panic(err)
+	}
+	os.Exit(1)
+}
+
+func (opts *Options) run(cmd *cobra.Command, args []string) {
+	if ghToken := os.Getenv("GITHUB_TOKEN"); len(ghToken) > 0 {
+		opts.GithubClient = oauth2.NewClient(context.TODO(), oauth2.StaticTokenSource(&oauth2.Token{AccessToken: ghToken}))
+	}
+	options, noConfig, err := ReadConfigToOptions(opts.ConfigPath, *opts)
+	if err != nil {
+		reportFatal(err)
+	}
+	// we don't have config passed, run using flags
+	if noConfig {
+		opts.runOnce(cmd, args)
+		return
+	}
+	for _, o := range options {
+		o.runOnce(cmd, args)
+	}
+}
+
+func (opts *Options) runOnce(cmd *cobra.Command, args []string) {
+	if err := opts.Validate(); err != nil {
+		reportFatal(err)
+	}
+	if err := opts.Complete(); err != nil {
+		reportFatal(err)
+	}
+	if err := opts.Run(); err != nil {
+		reportFatal(err)
+	}
+}
+
 func NewReplaceCommand() *cobra.Command {
-	replaceOptions := &options{}
+	replaceOptions := &Options{}
+
 	cmd := &cobra.Command{
 		Use:   "replace",
 		Short: "Replace help to bulk update modules versions",
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := replaceOptions.Validate(); err != nil {
-				log.Fatal(err)
-			}
-			if err := replaceOptions.Complete(); err != nil {
-				log.Fatal(err)
-			}
-			if err := replaceOptions.Run(); err != nil {
-				log.Fatal(err)
-			}
-		},
+		Run:   replaceOptions.run,
 	}
-
 	replaceOptions.AddFlags(cmd.Flags())
 
 	return cmd

@@ -1,0 +1,13 @@
+gomodPath: go.mod
+rules:
+  # replace all `k8s.io/*` paths to track the 'kubernetes-1.16.2' tag
+  - paths:
+      - k8s.io/
+    excludes:
+      - k8s.io/klog
+      - k8s.io/utils
+    tag: kubernetes-1.16.2
+  # replace all `github.com/openshift/*` paths to track the 'master' branch
+  - paths:
+      - github.com/openshift
+    branch: master
