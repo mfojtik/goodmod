@@ -2,17 +2,17 @@ all: build install
 
 build:
 	mkdir -p ./bin
-	GO111MODULE=on go build -o ./bin/gomod-helpers
+	GO111MODULE=on go build -o ./bin/goodmod
 
 build-cross:
-	rm -f ./bin/gomod-helpers-linux.gz ./bin/gomod-helpers-darwin.gz
-	GOOS=linux GOARCH=amd64 go build -o ./bin/gomod-helpers-linux && gzip ./bin/gomod-helpers-linux
-	GOOS=darwin GOARCH=amd64 go build -o ./bin/gomod-helpers-darwin && gzip ./bin/gomod-helpers-darwin
+	rm -f ./bin/goodmod-linux.gz ./bin/goodmod-darwin.gz
+	GOOS=linux GOARCH=amd64 go build -o ./bin/goodmod-linux && gzip ./bin/goodmod-linux
+	GOOS=darwin GOARCH=amd64 go build -o ./bin/goodmod-darwin && gzip ./bin/goodmod-darwin
 
 vendor:
 	GO111MODULE=on go mod tidy -v
 	GO111MODULE=on go mod vendor -v
 
 install:
-	cp -f ./bin/gomod-helpers ${GOPATH}/bin/
+	cp -f ./bin/goodmod ${GOPATH}/bin/
 
