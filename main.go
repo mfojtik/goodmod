@@ -23,8 +23,8 @@ func main() {
 
 func NewMainCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "gomod-helpers",
-		Short: "Tools to improve life with go mod",
+		Use:   "goodmod",
+		Short: "A pocket knife tool for manipulating go.mod files",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmd.Help()
 			os.Exit(255)

@@ -1,4 +1,3 @@
-gomodPath: go.mod
 rules:
   # replace all `k8s.io/*` paths to track the 'kubernetes-1.16.2' tag
   - paths:

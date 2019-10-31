@@ -1,38 +1,49 @@
-# gomod-helpers
+# goodmod
 
-`gomod-helpers` is a helper tool to perform bulk updates of multiple go modules at once, especially when bumping
-the module versions. This helper will help to bump the version using branch, tag or specific commit.
+`goodmod` is a tool that help Go developers that want to perform bulk replace in their `go.mod` files.
 
-To resolve branches and tag, this helper will use Github and if that fails, it falls back to git clone (slow).
-Github API is rate limited, so I encourage you to set `GITHUB_TOKEN` environment variable to bump the allowed requests limit.
+Example use cases are:
+* A project is tracking specific tag for multiple go modules (eg. `kubernetes-1.16.2`)
+* A project is tracking specific branch for multiple go modules (eg. `master`)
+* A project is tracking specific commit for single go module
+
+To resolve branches and tag, this tool use Github and as a falls back it will `git clone`.
+I encourage to set `GITHUB_TOKEN` environment variable to your personal Github token to speed this tool up.
+If you don't use the token, it will still try to use Github API, but you might see errors about being rate limited.
 
 ### Installation
 
-The easiest way to get `gomod-helpers` is to grab the binaries from the [release](https://github.com/mfojtik/goodmod/releases) page.
+The easiest way to get `goodmod` is to grab the binaries from the [release](https://github.com/mfojtik/goodmod/releases) page.
 If you want to build this command yourself, you can clone this repository and run the `GOPATH=~/go make` command.
 
-#### Usage
+Alternatively, you can use:
 
-To replace all modules that starts with `k8s.io/` prefix to point to a commit under `kubernetes-1.16.2` tag, use:
-```
-$ gomod-helpers replace --tag=kubernetes-1.16.2 --paths=k8s.io/
+```shell script
+go install github.com/mfojtik/goodmod
 ```
 
-To replace `github.com/openshift/library-go` module to point to a commit under `master` branch, use:
+#### `replace`
+
+To replace all modules, except klog and utils, that starts with `k8s.io/` prefix to point to a commit under `kubernetes-1.16.2` tag, use:
 ```
-$ gomod-helpers replace --branch=master --paths=github.com/openshift/library-go
+$ goodmod replace --tag=kubernetes-1.16.2 --paths=k8s.io/ --excludes=k8s.io/klog,k8s.io/utils
+```
+
+To replace `github.com/openshift/library-go` module to point to a HEAD commit in `master` branch, use:
+```
+$ goodmod replace --branch=master --paths=github.com/openshift/library-go
 ```
 
 To replace all modules with `github.com/openshift/` prefix to point to a commit under `master` branch, use:
 ```
-$ gomod-helpers replace --branch=master --paths=github.com/openshift/
+$ goodmod replace --branch=master --paths=github.com/openshift/
 ```
 
-**Note**: This command will **not** directly modify the `go.mod` file, but it will output a series of `go mod edit` commands
+**Note**: By default, this command **not** directly modify the `go.mod` file, but it will output a series of `go mod edit -replace` commands
 you can copy&paste to terminal, or you can pipe to `xargs`.
 
-```cgo
-$ gomod-helpers replace --tag=kubernetes-1.16.2 --paths=k8s.io/
+```shell script
+$ goodmod replace --tag=kubernetes-1.16.2 --paths=k8s.io/
 go mod edit -replace k8s.io/api=k8s.io/api@"v0.0.0-20191016110408-35e52d86657a"
 go mod edit -replace k8s.io/apiextensions-apiserver=k8s.io/apiextensions-apiserver@"v0.0.0-20191016113550-5357c4baaf65"
 go mod edit -replace k8s.io/apimachinery=k8s.io/apimachinery@"v0.0.0-20191004115801-a2eda9f80ab8"
@@ -41,9 +52,13 @@ go mod edit -replace k8s.io/client-go=k8s.io/client-go@"v0.0.0-20191016111102-be
 ...
 ```
 
-If you want `gomod-helpers` directly modify the `go.mod` file, you can pass the `--apply` flag.
+If you want `goodmod replace` directly modify the `go.mod` file, you can pass the `--apply` flag.
 
 #### `go-helpers.yaml`
 
 In case you want to track what branches and tags you are following in your package, you can use the `go-helpers.yaml` file.
 That file can include multiple rules to apply on the `go.mod` file. Check the [examples/](https://github.com/mfojtik/goodmod/tree/master/examples).
+
+License
+
+`goodmod` is licensed under the [Apache License, Version 2.0](http://www.apache.org/licenses/).

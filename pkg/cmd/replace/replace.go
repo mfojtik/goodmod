@@ -47,7 +47,7 @@ type Options struct {
 }
 
 func (opts *Options) AddFlags(flags *pflag.FlagSet) {
-	flags.StringVar(&opts.ConfigPath, "config", "gomod-helper.yaml", "Specify file to read the replace rules from")
+	flags.StringVar(&opts.ConfigPath, "config", "goodmod.yaml", "Specify file to read the replace rules from")
 	flags.StringVar(&opts.Branch, "branch", "", "Specify branch to use for this bump")
 	flags.StringVar(&opts.Tag, "tag", "", "Specify tag to use for this bump")
 	flags.StringVar(&opts.Commit, "commit", "", "Specify commit to use for this bump")
@@ -293,7 +293,8 @@ func NewReplaceCommand() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "replace",
-		Short: "Replace help to bulk update modules versions",
+		Short: "Replace multiple modules at once",
+		Long:  "Replace help to perform bulk operations on go.mod replace in case you want to track branch, tag or commit for single path",
 		Run:   replaceOptions.run,
 	}
 	replaceOptions.AddFlags(cmd.Flags())
