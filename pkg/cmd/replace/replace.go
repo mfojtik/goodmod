@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/fatih/color"
+	"github.com/gobwas/glob"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"golang.org/x/oauth2"
@@ -55,19 +56,23 @@ func (opts *Options) AddFlags(flags *pflag.FlagSet) {
 	flags.StringVar(&opts.GoModPath, "gomod-file-path", "go.mod", "Specify the path to go.mod file")
 	flags.BoolVar(&opts.ApplyReplace, "apply", false, "Apply the replace rules (execute 'go mod edit -replace' directly)")
 	flags.BoolVar(&opts.Verbose, "verbose", false, "Print more information about progress")
-	flags.StringSliceVar(&opts.Paths, "paths", []string{}, "Specify dependency path prefixes to update separated by comma (eg. 'github.com/openshift/api' or 'k8s.io/')")
+	flags.StringSliceVar(&opts.Paths, "paths", []string{}, "Specify dependency path prefixes to update separated by comma (eg. 'github.com/openshift/api' or 'k8s.io/*')")
 	flags.StringSliceVar(&opts.Excludes, "excludes", []string{}, "Specify dependency path prefixes to exclude (eg. 'github.com/openshift/api' or 'k8s.io/')")
+}
+
+func matchRulePath(s, rulePath string) bool {
+	return glob.MustCompile(rulePath).Match(s)
 }
 
 func (opts *Options) matchPath(r string) bool {
 	for _, item := range opts.Paths {
 		exclude := false
 		for _, e := range opts.Excludes {
-			if strings.HasPrefix(r, e) {
+			if matchRulePath(r, e) {
 				exclude = true
 			}
 		}
-		if !exclude && strings.HasPrefix(r, item) {
+		if !exclude && matchRulePath(r, item) {
 			return true
 		}
 	}
