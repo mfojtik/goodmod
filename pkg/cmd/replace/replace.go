@@ -42,6 +42,7 @@ type Options struct {
 	ApplyReplace bool
 
 	GithubClient *http.Client
+	Verbose      bool
 
 	replaces []moduleReplace
 }
@@ -53,6 +54,7 @@ func (opts *Options) AddFlags(flags *pflag.FlagSet) {
 	flags.StringVar(&opts.Commit, "commit", "", "Specify commit to use for this bump")
 	flags.StringVar(&opts.GoModPath, "gomod-file-path", "go.mod", "Specify the path to go.mod file")
 	flags.BoolVar(&opts.ApplyReplace, "apply", false, "Apply the replace rules (execute 'go mod edit -replace' directly)")
+	flags.BoolVar(&opts.Verbose, "verbose", false, "Print more information about progress")
 	flags.StringSliceVar(&opts.Paths, "paths", []string{}, "Specify dependency path prefixes to update separated by comma (eg. 'github.com/openshift/api' or 'k8s.io/')")
 	flags.StringSliceVar(&opts.Excludes, "excludes", []string{}, "Specify dependency path prefixes to exclude (eg. 'github.com/openshift/api' or 'k8s.io/')")
 }
@@ -74,7 +76,7 @@ func (opts *Options) matchPath(r string) bool {
 
 func (opts *Options) hasReplacePath(path string) bool {
 	for _, p := range opts.replaces {
-		if p.newPath == path {
+		if p.oldPath == path {
 			return true
 		}
 	}
@@ -92,7 +94,7 @@ func (opts *Options) parseModules() error {
 		return err
 	}
 	for _, r := range s.Replace {
-		if opts.matchPath(r.New.Path) {
+		if opts.matchPath(r.Old.Path) {
 			opts.replaces = append(opts.replaces, moduleReplace{newPath: r.New.Path, oldPath: r.Old.Path})
 		}
 	}
@@ -113,16 +115,28 @@ func reportErrorForPath(path string, reportedError error) {
 	}
 }
 
+func reportVerbose(message string, objects ...interface{}) {
+	if _, err := fmt.Fprintf(os.Stderr, "# "+message+"\n", objects...); err != nil {
+		panic(err)
+	}
+}
+
 func (opts *Options) resolveByTag(modulePath string) *types.Commit {
 	resolvers := []resolve.ModulerResolver{
 		tag.NewGithubTagResolver(opts.GithubClient),
 		tag.NewGitTagResolver(),
+	}
+	if opts.Verbose {
+		reportVerbose("Resolving module path %q using tag %q ...", modulePath, opts.Tag)
 	}
 	for _, r := range resolvers {
 		c, err := r.Resolve(context.TODO(), modulePath, opts.Tag)
 		if err != nil {
 			reportErrorForPath(modulePath, fmt.Errorf("failed to resolve tag using %T: %v", r, err))
 			continue
+		}
+		if opts.Verbose {
+			reportVerbose("Module path %q resolved to %q ...", modulePath, c.String())
 		}
 		return c
 	}
@@ -134,11 +148,17 @@ func (opts *Options) resolveByBranch(modulePath string) *types.Commit {
 		branch.NewGithubBranchResolver(opts.GithubClient),
 		branch.NewGitBranchResolver(),
 	}
+	if opts.Verbose {
+		reportVerbose("Resolving module path %q using branch %q ...", modulePath, opts.Branch)
+	}
 	for _, r := range resolvers {
 		c, err := r.Resolve(context.TODO(), modulePath, opts.Branch)
 		if err != nil {
 			reportErrorForPath(modulePath, fmt.Errorf("failed to resolve branch using %T: %v", r, err))
 			continue
+		}
+		if opts.Verbose {
+			reportVerbose("Module path %q resolved to %q ...", modulePath, c.String())
 		}
 		return c
 	}
@@ -150,11 +170,17 @@ func (opts *Options) resolveByCommit(modulePath string) *types.Commit {
 		commit.NewGithubCommitResolver(opts.GithubClient),
 		commit.NewGitCommitResolver(),
 	}
+	if opts.Verbose {
+		reportVerbose("Resolving module path %q using commit %q ...", modulePath, opts.Commit)
+	}
 	for _, r := range resolvers {
 		c, err := r.Resolve(context.TODO(), modulePath, opts.Commit)
 		if err != nil {
-			reportErrorForPath(modulePath, fmt.Errorf("failed to resolve commit: %v", r, err))
+			reportErrorForPath(modulePath, fmt.Errorf("failed to resolve commit: %v", err))
 			continue
+		}
+		if opts.Verbose {
+			reportVerbose("Module path %q resolved to %q ...", modulePath, c.String())
 		}
 		return c
 	}

@@ -22,6 +22,11 @@ func ReadConfigToOptions(configPath string, originalOptions Options) ([]*Options
 	if err := yaml.Unmarshal(configBytes, &c); err != nil {
 		return nil, false, fmt.Errorf("error parsing %q: %v", configPath, err)
 	}
+	if originalOptions.Verbose {
+		if _, err := fmt.Fprintf(os.Stdout, "# Loaded %d go.mod rules\n", len(c.Rules)); err != nil {
+			return nil, false, err
+		}
+	}
 	options := make([]*Options, len(c.Rules))
 	for i, rule := range c.Rules {
 		options[i] = &Options{
@@ -33,6 +38,7 @@ func ReadConfigToOptions(configPath string, originalOptions Options) ([]*Options
 			GoModPath:    originalOptions.GoModPath,
 			GithubClient: originalOptions.GithubClient,
 			ApplyReplace: originalOptions.ApplyReplace,
+			Verbose:      originalOptions.Verbose,
 		}
 	}
 	return options, false, nil

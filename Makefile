@@ -14,5 +14,5 @@ vendor:
 	GO111MODULE=on go mod vendor -v
 
 install:
-	cp -f ./bin/goodmod ${GOPATH}/bin/
+	cp -f ./bin/goodmod ${HOME}/bin/
 
