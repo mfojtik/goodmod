@@ -26,7 +26,7 @@ go install github.com/mfojtik/goodmod
 
 To replace all modules, except klog and utils, that starts with `k8s.io/` prefix to point to a commit under `kubernetes-1.16.2` tag, use:
 ```
-$ goodmod replace --tag=kubernetes-1.16.2 --paths=k8s.io/ --excludes=k8s.io/klog,k8s.io/utils
+$ goodmod replace --tag=kubernetes-1.16.2 --paths=k8s.io/* --excludes=k8s.io/klog,k8s.io/utils
 ```
 
 To replace `github.com/openshift/library-go` module to point to a HEAD commit in `master` branch, use:
@@ -36,7 +36,7 @@ $ goodmod replace --branch=master --paths=github.com/openshift/library-go
 
 To replace all modules with `github.com/openshift/` prefix to point to a commit under `master` branch, use:
 ```
-$ goodmod replace --branch=master --paths=github.com/openshift/
+$ goodmod replace --branch=master --paths=github.com/openshift/*
 ```
 
 **Note**: By default, this command **not** directly modify the `go.mod` file, but it will output a series of `go mod edit -replace` commands

@@ -8,5 +8,5 @@ rules:
     tag: kubernetes-1.16.2
   # replace all `github.com/openshift/*` paths to track the 'master' branch
   - paths:
-      - github.com/openshift
+      - github.com/openshift/*
     branch: master
