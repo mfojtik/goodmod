@@ -59,6 +59,15 @@ If you want `goodmod replace` directly modify the `go.mod` file, you can pass th
 In case you want to track what branches and tags you are following in your package, you can use the `go-helpers.yaml` file.
 That file can include multiple rules to apply on the `go.mod` file. Check the [examples/](https://github.com/mfojtik/goodmod/tree/master/examples).
 
+Once you have rule defined, you can run following command to only update a single matching path:
+
+```shell script
+$ goodmod replace github.com/openshift/library-go --verbose --apply
+```
+
+In this case a rule matching `github.com/openshift/library-go` is located and only this paths is bumped to branch/tag/commit specified
+by the rule.
+
 #### License
 
 `goodmod` is licensed under the [Apache License, Version 2.0](http://www.apache.org/licenses/).
