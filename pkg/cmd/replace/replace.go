@@ -39,6 +39,7 @@ type Options struct {
 	Excludes   []string
 	GoModPath  string
 	ConfigPath string
+	SingleRule string
 
 	ApplyReplace bool
 
@@ -293,7 +294,10 @@ func (opts *Options) run(cmd *cobra.Command, args []string) {
 	if ghToken := os.Getenv("GITHUB_TOKEN"); len(ghToken) > 0 {
 		opts.GithubClient = oauth2.NewClient(context.TODO(), oauth2.StaticTokenSource(&oauth2.Token{AccessToken: ghToken}))
 	}
-	options, noConfig, err := ReadConfigToOptions(opts.ConfigPath, *opts)
+	if len(args) == 1 {
+		opts.SingleRule = strings.TrimSpace(args[0])
+	}
+	options, noConfig, err := ReadConfigToOptions(opts.ConfigPath, opts.SingleRule, *opts)
 	if err != nil {
 		reportFatal(err)
 	}
@@ -319,14 +323,30 @@ func (opts *Options) runOnce(cmd *cobra.Command, args []string) {
 	}
 }
 
+var example = `
+# Update all k8s.io/* paths to 'kubernetes-1.16.2' tag
+goodmod replace --paths=k8s.io/* --tag=kubernetes-1.16.2
+
+# Update all github.com/openshift/* to HEAD commit in 'master' branch
+goodmod replace --paths=github.com/openshift/* --branch=master
+
+# Update all github.com/openshift/library-go to HEAD commit in 'master' branch
+# The goodmod.yaml config file MUST specify at least one rule for this path.
+goodmod replace github.com/openshift/library-go
+
+# Update all modules specified in goodmod.yaml and apply changes to go.mod directly
+goodmod replace --apply --verbose
+`
+
 func NewReplaceCommand() *cobra.Command {
 	replaceOptions := &Options{}
 
 	cmd := &cobra.Command{
-		Use:   "replace",
-		Short: "Replace multiple modules at once",
-		Long:  "Replace help to perform bulk operations on go.mod replace in case you want to track branch, tag or commit for single path",
-		Run:   replaceOptions.run,
+		Use:     "replace [path]",
+		Example: example,
+		Short:   "Replace multiple modules at once",
+		Long:    "Replace help to perform bulk operations on go.mod replace in case you want to track branch, tag or commit for single path",
+		Run:     replaceOptions.run,
 	}
 	replaceOptions.AddFlags(cmd.Flags())
 
