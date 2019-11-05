@@ -1,8 +1,10 @@
 package report
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
+	"net/http"
 	"os"
 	"sort"
 	"strings"
@@ -10,14 +12,18 @@ import (
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"golang.org/x/oauth2"
 
 	"github.com/mfojtik/goodmod/pkg/config"
 	"github.com/mfojtik/goodmod/pkg/golang"
+	"github.com/mfojtik/goodmod/pkg/resolve/branch"
 )
 
 type Options struct {
 	ConfigPath string
 	GoModPath  string
+
+	GithubClient *http.Client
 }
 
 func (opts *Options) AddFlags(flags *pflag.FlagSet) {
@@ -27,9 +33,22 @@ func (opts *Options) AddFlags(flags *pflag.FlagSet) {
 
 type module struct {
 	path           string
+	replacePath    string
 	currentVersion string
 	trackingType   string
 	desiredVersion string
+}
+
+func (m module) CommitsMissing(client *http.Client) string {
+	lister := branch.NewGithubBranchCommitsLister(client)
+	commits, err := lister.List(context.TODO(), m.replacePath, m.currentVersion, m.desiredVersion)
+	if err != nil {
+		return err.Error()
+	}
+	if commits == 0 {
+		return "up to date"
+	}
+	return fmt.Sprintf("%d commits", commits)
 }
 
 func formatModuleVersion(v string) string {
@@ -55,6 +74,7 @@ func (opts *Options) parseModules(rules []config.Rule) ([]module, error) {
 	for _, r := range s.Replace {
 		newModule := module{
 			path:           r.Old.Path,
+			replacePath:    r.New.Path,
 			currentVersion: formatModuleVersion(r.New.Version),
 		}
 		if rule := config.RuleForPath(rules, r.Old.Path); rule != nil {
@@ -89,28 +109,39 @@ func (opts *Options) parseModules(rules []config.Rule) ([]module, error) {
 }
 
 func (opts *Options) run(cmd *cobra.Command, args []string) {
+	if ghToken := os.Getenv("GITHUB_TOKEN"); len(ghToken) > 0 {
+		opts.GithubClient = oauth2.NewClient(context.TODO(), oauth2.StaticTokenSource(&oauth2.Token{AccessToken: ghToken}))
+	}
 	c, err := config.ReadConfig(opts.ConfigPath)
 	if err != nil {
 		reportFatal(err)
 	}
+
 	modules, err := opts.parseModules(c.Rules)
 	if err != nil {
 		reportFatal(err)
 	}
+
 	table := tablewriter.NewWriter(os.Stdout)
-	table.SetHeader([]string{"Path", "Current Version", "Tracking Type", "Desired Version"})
+	table.SetHeader([]string{"Path", "Current Version", "Tracking Type", "Desired Version", "Updates"})
 	table.SetBorders(tablewriter.Border{Left: false, Top: false, Right: false, Bottom: false})
 	table.SetCenterSeparator("|")
 	table.SetAlignment(tablewriter.ALIGN_LEFT)
 
 	tableData := [][]string{}
 	for _, m := range modules {
-		tableData = append(tableData, []string{
+		row := []string{
 			m.path,
 			m.currentVersion,
 			m.trackingType,
 			m.desiredVersion,
-		})
+		}
+		if m.trackingType == "branch" {
+			row = append(row, m.CommitsMissing(opts.GithubClient))
+		} else {
+			row = append(row, "")
+		}
+		tableData = append(tableData, row)
 	}
 	sort.Slice(tableData, func(i, j int) bool {
 		return tableData[i][0] >= tableData[j][0]
