@@ -8,6 +8,8 @@ require (
 	github.com/google/go-github/v28 v28.1.1
 	github.com/mattn/go-colorable v0.1.4 // indirect
 	github.com/mattn/go-isatty v0.0.10 // indirect
+	github.com/mattn/go-runewidth v0.0.6 // indirect
+	github.com/olekukonko/tablewriter v0.0.1
 	github.com/spf13/cobra v0.0.5
 	github.com/spf13/pflag v1.0.5
 	golang.org/x/oauth2 v0.0.0-20180821212333-d2e6202438be

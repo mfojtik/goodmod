@@ -1,36 +1,15 @@
 package replace
 
 import (
-	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
-
-	"gopkg.in/yaml.v2"
 
 	"github.com/mfojtik/goodmod/pkg/config"
 )
 
-var NoConfigError = errors.New("no config file")
-
-func readConfig(configPath string) (*config.Config, error) {
-	configBytes, err := ioutil.ReadFile(configPath)
-	if os.IsNotExist(err) {
-		return nil, NoConfigError
-	}
-	if err != nil {
-		return nil, fmt.Errorf("error reading %q: %v", configPath, err)
-	}
-	c := config.Config{}
-	if err := yaml.Unmarshal(configBytes, &c); err != nil {
-		return nil, fmt.Errorf("error parsing %q: %v", configPath, err)
-	}
-	return &c, nil
-}
-
-func ReadConfigToOptions(configPath string, singleRule string, originalOptions Options) ([]*Options, bool, error) {
-	c, err := readConfig(configPath)
-	if err == NoConfigError {
+func configToOptions(configPath string, singleRule string, originalOptions Options) ([]*Options, bool, error) {
+	c, err := config.ReadConfig(configPath)
+	if err == config.NotFoundError {
 		return nil, true, nil
 	}
 	if err != nil {

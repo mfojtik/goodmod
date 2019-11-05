@@ -11,11 +11,11 @@ import (
 	"sync"
 
 	"github.com/fatih/color"
-	"github.com/gobwas/glob"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"golang.org/x/oauth2"
 
+	"github.com/mfojtik/goodmod/pkg/config"
 	"github.com/mfojtik/goodmod/pkg/golang"
 	"github.com/mfojtik/goodmod/pkg/resolve"
 	"github.com/mfojtik/goodmod/pkg/resolve/branch"
@@ -61,25 +61,6 @@ func (opts *Options) AddFlags(flags *pflag.FlagSet) {
 	flags.StringSliceVar(&opts.Excludes, "excludes", []string{}, "Specify dependency path prefixes to exclude (eg. 'github.com/openshift/api' or 'k8s.io/')")
 }
 
-func matchRulePath(s, rulePath string) bool {
-	return glob.MustCompile(rulePath).Match(s)
-}
-
-func (opts *Options) matchPath(r string) bool {
-	for _, item := range opts.Paths {
-		exclude := false
-		for _, e := range opts.Excludes {
-			if matchRulePath(r, e) {
-				exclude = true
-			}
-		}
-		if !exclude && matchRulePath(r, item) {
-			return true
-		}
-	}
-	return false
-}
-
 func (opts *Options) hasReplacePath(path string) bool {
 	for _, p := range opts.replaces {
 		if p.oldPath == path {
@@ -100,12 +81,12 @@ func (opts *Options) parseModules() error {
 		return err
 	}
 	for _, r := range s.Replace {
-		if opts.matchPath(r.Old.Path) {
+		if config.MatchPath(opts.Paths, opts.Excludes, r.Old.Path) {
 			opts.replaces = append(opts.replaces, moduleReplace{newPath: r.New.Path, oldPath: r.Old.Path})
 		}
 	}
 	for _, r := range s.Require {
-		if !opts.hasReplacePath(r.Mod.Path) && opts.matchPath(r.Mod.Path) {
+		if !opts.hasReplacePath(r.Mod.Path) && config.MatchPath(opts.Paths, opts.Excludes, r.Mod.Path) {
 			opts.replaces = append(opts.replaces, moduleReplace{newPath: r.Mod.Path, oldPath: r.Mod.Path})
 		}
 	}
@@ -297,7 +278,7 @@ func (opts *Options) run(cmd *cobra.Command, args []string) {
 	if len(args) == 1 {
 		opts.SingleRule = strings.TrimSpace(args[0])
 	}
-	options, noConfig, err := ReadConfigToOptions(opts.ConfigPath, opts.SingleRule, *opts)
+	options, noConfig, err := configToOptions(opts.ConfigPath, opts.SingleRule, *opts)
 	if err != nil {
 		reportFatal(err)
 	}
