@@ -36,9 +36,9 @@ func formatModuleVersion(v string) string {
 	// v0.0.0-20191016115129-c07a134afb42 => c07a134afb42
 	parts := strings.Split(v, "-")
 	if len(parts) == 3 {
-		return parts[2]
+		return strings.TrimSuffix(parts[2], "+incompatible")
 	}
-	return v
+	return strings.TrimSuffix(v, "+incompatible")
 }
 
 // parseModules will parse the existing go.mod file and filter out only modules matching the name prefixes specified with this command
@@ -61,6 +61,9 @@ func (opts *Options) parseModules(rules []config.Rule) ([]module, error) {
 			trackingType, version := formatRuleSource(*rule)
 			newModule.desiredVersion = version
 			newModule.trackingType = trackingType
+		} else {
+			newModule.desiredVersion = formatModuleVersion(r.New.Version)
+			newModule.trackingType = "manual"
 		}
 		modules = append(modules, newModule)
 	}
@@ -78,7 +81,7 @@ func (opts *Options) parseModules(rules []config.Rule) ([]module, error) {
 		modules = append(modules, module{
 			path:           r.Mod.Path,
 			currentVersion: formatModuleVersion(r.Mod.Version),
-			desiredVersion: "n/a",
+			desiredVersion: " ",
 			trackingType:   "required",
 		})
 	}
@@ -110,7 +113,7 @@ func (opts *Options) run(cmd *cobra.Command, args []string) {
 		})
 	}
 	sort.Slice(tableData, func(i, j int) bool {
-		return tableData[i][0] < tableData[j][0]
+		return tableData[i][0] >= tableData[j][0]
 	})
 	table.AppendBulk(tableData)
 	table.Render()
