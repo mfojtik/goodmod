@@ -26,6 +26,7 @@ import (
 
 type moduleReplace struct {
 	oldPath        string
+	oldPathVersion string
 	newPath        string
 	newPathVersion string
 }
@@ -61,6 +62,15 @@ func (opts *Options) AddFlags(flags *pflag.FlagSet) {
 	flags.StringSliceVar(&opts.Excludes, "excludes", []string{}, "Specify dependency path prefixes to exclude (eg. 'github.com/openshift/api' or 'k8s.io/')")
 }
 
+func (opts *Options) GetVersionsForPath(path string) (string, string) {
+	for _, p := range opts.replaces {
+		if p.oldPath == path {
+			return p.oldPathVersion, p.newPathVersion
+		}
+	}
+	return "", ""
+}
+
 func (opts *Options) hasReplacePath(path string) bool {
 	for _, p := range opts.replaces {
 		if p.oldPath == path {
@@ -80,14 +90,15 @@ func (opts *Options) parseModules() error {
 	if err != nil {
 		return err
 	}
+	opts.replaces = []moduleReplace{}
 	for _, r := range s.Replace {
 		if config.MatchPath(opts.Paths, opts.Excludes, r.Old.Path) {
-			opts.replaces = append(opts.replaces, moduleReplace{newPath: r.New.Path, oldPath: r.Old.Path})
+			opts.replaces = append(opts.replaces, moduleReplace{newPath: r.New.Path, oldPath: r.Old.Path, oldPathVersion: r.New.Version})
 		}
 	}
 	for _, r := range s.Require {
 		if !opts.hasReplacePath(r.Mod.Path) && config.MatchPath(opts.Paths, opts.Excludes, r.Mod.Path) {
-			opts.replaces = append(opts.replaces, moduleReplace{newPath: r.Mod.Path, oldPath: r.Mod.Path})
+			opts.replaces = append(opts.replaces, moduleReplace{newPath: r.Mod.Path, oldPath: r.Mod.Path, oldPathVersion: r.Mod.Version})
 		}
 	}
 	return nil
@@ -271,28 +282,31 @@ func reportFatal(message interface{}, objects ...interface{}) {
 	os.Exit(1)
 }
 
-func (opts *Options) run(cmd *cobra.Command, args []string) {
+func (opts *Options) RunCommand(cmd *cobra.Command, args []string) {
 	if ghToken := os.Getenv("GITHUB_TOKEN"); len(ghToken) > 0 {
 		opts.GithubClient = oauth2.NewClient(context.TODO(), oauth2.StaticTokenSource(&oauth2.Token{AccessToken: ghToken}))
 	}
 	if len(args) == 1 {
 		opts.SingleRule = strings.TrimSpace(args[0])
 	}
-	options, noConfig, err := configToOptions(opts.ConfigPath, opts.SingleRule, *opts)
+	options, noConfig, err := ConfigToOptions(opts.ConfigPath, opts.SingleRule, *opts)
 	if err != nil {
 		reportFatal(err)
 	}
-	// we don't have config passed, run using flags
+	// we don't have config passed, RunCommand using flags
 	if noConfig {
-		opts.runOnce(cmd, args)
+		opts.RunOnce(cmd, args)
 		return
 	}
 	for _, o := range options {
-		o.runOnce(cmd, args)
+		o.RunOnce(cmd, args)
+
+		// TODO: This will only preserve last replace set
+		opts.replaces = o.replaces
 	}
 }
 
-func (opts *Options) runOnce(cmd *cobra.Command, args []string) {
+func (opts *Options) RunOnce(cmd *cobra.Command, args []string) {
 	if err := opts.Validate(); err != nil {
 		reportFatal(err)
 	}
@@ -327,7 +341,7 @@ func NewReplaceCommand() *cobra.Command {
 		Example: example,
 		Short:   "Replace multiple modules at once",
 		Long:    "Replace help to perform bulk operations on go.mod replace in case you want to track branch, tag or commit for single path",
-		Run:     replaceOptions.run,
+		Run:     replaceOptions.RunCommand,
 	}
 	replaceOptions.AddFlags(cmd.Flags())
 

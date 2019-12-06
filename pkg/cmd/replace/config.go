@@ -7,7 +7,7 @@ import (
 	"github.com/mfojtik/goodmod/pkg/config"
 )
 
-func configToOptions(configPath string, singleRule string, originalOptions Options) ([]*Options, bool, error) {
+func ConfigToOptions(configPath string, singleRule string, originalOptions Options) ([]*Options, bool, error) {
 	c, err := config.ReadConfig(configPath)
 	if err == config.NotFoundError {
 		return nil, true, nil

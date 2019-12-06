@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/mfojtik/goodmod/pkg/cmd/bump"
 	"github.com/mfojtik/goodmod/pkg/cmd/replace"
 	"github.com/mfojtik/goodmod/pkg/cmd/report"
 )
@@ -38,6 +39,7 @@ func NewMainCommand() *cobra.Command {
 
 	cmd.AddCommand(replace.NewReplaceCommand())
 	cmd.AddCommand(report.NewReportCommand())
+	cmd.AddCommand(bump.NewBumpCommand())
 
 	return cmd
 }
